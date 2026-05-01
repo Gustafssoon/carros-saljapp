@@ -134,6 +134,13 @@ body {
   padding: 6px 4px 16px;
   flex-shrink: 0;
   overflow: visible;
+  position: relative;
+  z-index: 10;
+}
+
+/* Extra bottom padding so content doesn't hide behind nav */
+.scroll > div:last-child, .scroll > *:last-child {
+  padding-bottom: 16px;
 }
 
 input, select, textarea, button { font-family: inherit; }
@@ -998,6 +1005,16 @@ function App() {
     </div>
   );
 }
+
+// Prevent body scroll/overscroll on mobile — only .scroll divs should scroll
+document.addEventListener('touchmove', function(e) {
+  let el = e.target;
+  while (el && el !== document.body) {
+    if (el.classList && el.classList.contains('scroll')) return;
+    el = el.parentElement;
+  }
+  e.preventDefault();
+}, { passive: false });
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>

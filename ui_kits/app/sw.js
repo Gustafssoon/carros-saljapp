@@ -1,4 +1,4 @@
-const CACHE = 'saljapp-v1';
+const CACHE = 'saljapp-v5';
 const PRECACHE = [
   './index.html',
   './manifest.json',
