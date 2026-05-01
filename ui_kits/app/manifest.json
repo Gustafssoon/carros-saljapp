@@ -1,0 +1,16 @@
+{
+  "name": "Carros Säljapp",
+  "short_name": "Säljapp",
+  "description": "Privat säljapp för Carro och Gabriel — registrera, sälj och håll koll.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F3EF",
+  "theme_color": "#5A7F6E",
+  "lang": "sv",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

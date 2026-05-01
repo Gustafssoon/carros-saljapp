@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carros Säljapp</title>
+
+<!-- PWA manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Theme -->
+<meta name="theme-color" content="#5A7F6E">
+<meta name="background-color" content="#F5F3EF">
+
+<!-- iOS / Safari Add to Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Säljapp">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Android / Chrome -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="Säljapp">
+
+<!-- Open Graph (for sharing link previews) -->
+<meta property="og:title" content="Carros Säljapp">
+<meta property="og:description" content="Privat säljapp för Carro och Gabriel">
+<meta property="og:image" content="icons/icon-512.png">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #1A1A1A;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+.phone {
+  width: 390px; height: 844px; background: #F5F3EF;
+  border-radius: 50px; overflow: hidden; position: relative;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.7), inset 0 0 0 1.5px rgba(255,255,255,0.1);
+  display: flex; flex-direction: column;
+}
+.sbar { height:50px; background:#fff; display:flex; align-items:flex-end; justify-content:space-between; padding:0 28px 10px; flex-shrink:0; font-size:14px; font-weight:600; color:#1C1C1E; }
+.screen { flex:1; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+.scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
+.scroll::-webkit-scrollbar { display:none; }
+.bnav { height:84px; background:#fff; border-top:1px solid #E4E2DD; display:flex; align-items:center; justify-content:space-around; padding:6px 4px 24px; flex-shrink:0; overflow:visible; }
+/* Standalone PWA mode — remove phone shell, fill screen */
+@media (display-mode: standalone) {
+  body { background: #F5F3EF; align-items: flex-start; justify-content: flex-start; }
+  .phone { width: 100vw; height: 100vh; height: 100dvh; border-radius: 0; box-shadow: none; }
+  .sbar { padding-top: env(safe-area-inset-top, 14px); height: calc(44px + env(safe-area-inset-top, 0px)); }
+  .bnav { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); height: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}
+/* iOS standalone (webkit) */
+@media (display-mode: standalone), (-webkit-device-pixel-ratio: 2) {
+  .phone { -webkit-tap-highlight-color: transparent; }
+}
+
+input:focus,select:focus,textarea:focus { outline:none; }
+@keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+.su { animation: slideUp 180ms ease-out; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── Tokens ── */
+const C = {
+  bg:'#F5F3EF', surface:'#FFFFFF', border:'#E4E2DD',
+  primary:'#5A7F6E', primaryLight:'#EBF2EE', primaryDark:'#3E6657',
+  cta:'#E8784A', ctaLight:'#FEF4EE', ctaDark:'#C4522A',
+  text:'#1C1C1E', textSec:'#6B6B70', textMuted:'#AEAEB2',
+  red:'#D94F3D', redBg:'#FDECEA',
+};
+
+/* ── Status definitions — icon + distinct colors ── */
+const STATUS_DEF = {
+  'Osåld':        { bg:'#EBEBED', color:'#52525A', dot:'#9B9B9E', icon:'circle-dashed' },
+  'Väntar frakt': { bg:'#FEF0C7', color:'#92400E', dot:'#F59E0B', icon:'clock' },
+  'Frakt bokad':  { bg:'#DBEAFE', color:'#1E40AF', dot:'#3B82F6', icon:'package' },
+  'Skickad':      { bg:'#C7D2FE', color:'#3730A3', dot:'#6366F1', icon:'send' },
+  'Överlämning':  { bg:'#EDE9FE', color:'#5B21B6', dot:'#8B5CF6', icon:'map-pin' },
+  'Klar':         { bg:'#D1FAE5', color:'#065F46', dot:'#10B981', icon:'check-circle' },
+};
+
+const CATEGORY_ICON = { Kläder:'shirt', Skor:'footprints', Accessoarer:'watch', Hem:'home', Övrigt:'package-2' };
+
+const DEFAULT_OWNERS = [
+  { id:1, name:'Carro',  color:'#5A7F6E', carroAndel:100 }, // Carro äger → allt till Carro
+  { id:2, name:'Mamma',  color:'#9060C8', carroAndel:30  }, // Carro tar 30%, Mamma får 70%
+  { id:3, name:'Gabbe',  color:'#E8784A', carroAndel:30  }, // Carro tar 30%, Gabbe får 70%
+  { id:4, name:'Syrran', color:'#2E88C8', carroAndel:30  }, // Carro tar 30%, Syrran får 70%
+];
+
+const PHOTO = {
+  1: '../../assets/items/klanning-gron.png',
+  2: '../../assets/items/jeans-ljusbla.png',
+  3: '../../assets/items/crop-top-svart.png',
+  4: '../../assets/items/blus-prickig.png',
+  5: '../../assets/items/nike-tee.png',
+  6: '../../assets/items/chloe-parfym.png',
+  15: '../../assets/items/solglasogon.png',
+  16: '../../assets/items/linneskjorta.png',
+  17: '../../assets/items/adidas-samba.png',
+  18: '../../assets/items/svart-vaska.png',
+};
+
+const DEFAULT_ITEMS = [
+  { id:1,  photo:PHOTO[1], title:'Grön blommig klänning L',   category:'Kläder',      utpris:295, platform:'Vinted', ownerId:1, carroAndel:100, sold:true,  saltPris:260, datumSald:'2026-04-10', kopare:'Anna Lindqvist',   adress:'Storgatan 5',  postnr:'11234', ort:'Stockholm', betald:true,  betaldatum:'2026-04-11', fraktmetod:'Postpaket', bokadFrakt:true,  fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'SE12345678SE',  fraktdatum:'2026-04-12', overlamnningsdatum:'', status:'Klar' },
+  { id:2,  photo:PHOTO[2], title:'Ljusblå utsvängda jeans 36',category:'Kläder',      utpris:220, platform:'TikTok', ownerId:3, carroAndel:30,  sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:3,  photo:PHOTO[3], title:'Svart virkad crop top XS',  category:'Kläder',      utpris:95,  platform:'Vinted', ownerId:1, carroAndel:100, sold:true,  saltPris:85,  datumSald:'2026-04-18', kopare:'Sara Berg',        adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Väntar frakt' },
+  { id:4,  photo:PHOTO[4], title:'Prickig blus puffärmar S',  category:'Kläder',      utpris:125, platform:'Vinted', ownerId:3, carroAndel:30,  sold:true,  saltPris:110, datumSald:'2026-04-20', kopare:'Erik Svensson',    adress:'Lillgatan 3',  postnr:'21232', ort:'Malmö',     betald:true,  betaldatum:'2026-04-20', fraktmetod:'Hämtas',    bokadFrakt:false, fraktbolag:'',          annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'2026-04-26', status:'Överlämning' },
+  { id:5,  photo:PHOTO[5], title:'Nike träningst-shirt S',    category:'Kläder',      utpris:89,  platform:'TikTok', ownerId:4, carroAndel:30,  sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Brev',      bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:6,  photo:PHOTO[6], title:'Chloé parfym 50ml',         category:'Accessoarer', utpris:350, platform:'Vinted', ownerId:2, carroAndel:30,  sold:true,  saltPris:310, datumSald:'2026-04-05', kopare:'Maja Karlsson',    adress:'Parkvägen 12', postnr:'41457', ort:'Göteborg',  betald:true,  betaldatum:'2026-04-06', fraktmetod:'Postpaket', bokadFrakt:true,  fraktbolag:'DHL',       annatFraktbolag:'', fraktkod:'',              fraktdatum:'2026-04-07', overlamnningsdatum:'', status:'Frakt bokad' },
+  { id:7,  photo:'',       title:'Silvrig festkjol S',        category:'Kläder',      utpris:220, platform:'TikTok', ownerId:1, carroAndel:100, sold:true,  saltPris:195, datumSald:'2026-04-14', kopare:'Linn Johansson',   adress:'Södra vägen 8',postnr:'72215', ort:'Västerås',  betald:true,  betaldatum:'2026-04-15', fraktmetod:'Postpaket', bokadFrakt:true,  fraktbolag:'Budbee',    annatFraktbolag:'', fraktkod:'BB-9921345',    fraktdatum:'2026-04-16', overlamnningsdatum:'', status:'Skickad' },
+  { id:8,  photo:'',       title:'Barnstövlar strl 28',       category:'Skor',        utpris:95,  platform:'Vinted', ownerId:2, carroAndel:30,  sold:true,  saltPris:80,  datumSald:'2026-04-08', kopare:'Karin Nilsson',    adress:'Björkgatan 22',postnr:'85234', ort:'Sundsvall', betald:true,  betaldatum:'2026-04-09', fraktmetod:'Brev',      bokadFrakt:true,  fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'SE987654',      fraktdatum:'2026-04-09', overlamnningsdatum:'', status:'Klar' },
+  { id:9,  photo:'',       title:'Träningsskor Adidas 38',    category:'Skor',        utpris:165, platform:'Vinted', ownerId:4, carroAndel:30,  sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:10, photo:'',       title:'Leopardmönstrat bälte',     category:'Accessoarer', utpris:65,  platform:'TikTok', ownerId:3, carroAndel:30,  sold:true,  saltPris:55,  datumSald:'2026-04-19', kopare:'Petra Larsson',    adress:'Kungsgatan 1', postnr:'11122', ort:'Stockholm', betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Väntar frakt' },
+  { id:11, photo:'',       title:'Grå ullkappa M',            category:'Kläder',      utpris:850, platform:'Vinted', ownerId:1, carroAndel:100, sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:12, photo:'',       title:'Hemgjorda denim shorts S',  category:'Kläder',      utpris:85,  platform:'TikTok', ownerId:4, carroAndel:30,  sold:true,  saltPris:70,  datumSald:'2026-04-21', kopare:'Felicia Ek',       adress:'',             postnr:'',      ort:'Uppsala',   betald:true,  betaldatum:'2026-04-21', fraktmetod:'Avlämnas',  bokadFrakt:false, fraktbolag:'',          annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'2026-04-23', status:'Klar' },
+  { id:13, photo:'',       title:'Blommig sommarblus 36',     category:'Kläder',      utpris:110, platform:'Vinted', ownerId:2, carroAndel:30,  sold:true,  saltPris:95,  datumSald:'2026-04-22', kopare:'Helena Magnusson', adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Väntar frakt' },
+  { id:14, photo:'',       title:'Solglasögon, brun båge',    category:'Accessoarer', utpris:75,  platform:'TikTok', ownerId:1, carroAndel:100, sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Brev',      bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:15, photo:PHOTO[15],title:'Solglasögon 3-pack',         category:'Accessoarer', utpris:150, platform:'Vinted', ownerId:1, carroAndel:100, sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Brev',      bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:16, photo:PHOTO[16],title:'Brun linneskjorta L',        category:'Kläder',      utpris:180, platform:'Vinted', ownerId:2, carroAndel:30,  sold:false, saltPris:'',  datumSald:'',           kopare:'',                adress:'',             postnr:'',      ort:'',          betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Osåld' },
+  { id:17, photo:PHOTO[17],title:'Adidas Samba Wales Bonner 44',category:'Skor',       utpris:2800,platform:'Vinted', ownerId:3, carroAndel:30,  sold:true,  saltPris:2600,datumSald:'2026-04-21', kopare:'Max Lindgren',    adress:'Björnvägen 4', postnr:'16852', ort:'Bromma',    betald:false, betaldatum:'',           fraktmetod:'Postpaket', bokadFrakt:false, fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'',              fraktdatum:'',           overlamnningsdatum:'', status:'Väntar frakt' },
+  { id:18, photo:PHOTO[18],title:'Svart läderväska med guld',  category:'Accessoarer', utpris:950, platform:'Vinted', ownerId:2, carroAndel:30,  sold:true,  saltPris:880, datumSald:'2026-04-15', kopare:'Johanna Ström',   adress:'Tulpanvägen 9',postnr:'21445', ort:'Malmö',     betald:true,  betaldatum:'2026-04-16', fraktmetod:'Postpaket', bokadFrakt:true,  fraktbolag:'Postnord',  annatFraktbolag:'', fraktkod:'SE441122334',   fraktdatum:'2026-04-17', overlamnningsdatum:'', status:'Skickad' },
+];
+
+function load(key, fb) { try { const s=localStorage.getItem(key); return s?JSON.parse(s):fb; } catch{return fb;} }
+function save(key, v)  { try { localStorage.setItem(key,JSON.stringify(v)); } catch{} }
+
+function computeStatus(f) {
+  if (!f.sold) return 'Osåld';
+  const hand = ['Hämtas','Avlämnas'].includes(f.fraktmetod);
+  if (hand) return f.betald ? 'Klar' : 'Överlämning';
+  if (f.fraktkod && f.bokadFrakt) return f.betald ? 'Klar' : 'Skickad';
+  if (f.bokadFrakt) return 'Frakt bokad';
+  return 'Väntar frakt';
+}
+
+/* ── Icon ── */
+function Icon({ name, size=20, color, style:st }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.lucide) return;
+    ref.current.innerHTML = '';
+    const def = window.lucide.icons[name];
+    if (!def) return;
+    const ns='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('width',size); svg.setAttribute('height',size);
+    svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('fill','none');
+    svg.setAttribute('stroke',color||'currentColor');
+    svg.setAttribute('stroke-width','2');
+    svg.setAttribute('stroke-linecap','round'); svg.setAttribute('stroke-linejoin','round');
+    svg.innerHTML = def[2].map(([tag,attrs])=>{
+      const el=document.createElementNS(ns,tag);
+      Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+      return el.outerHTML;
+    }).join('');
+    ref.current.appendChild(svg);
+  },[name,size,color]);
+  return <span ref={ref} style={{display:'inline-flex',alignItems:'center',flexShrink:0,...st}} />;
+}
+
+/* ── StatusBadge ── */
+function StatusBadge({ status, size='sm' }) {
+  const s = STATUS_DEF[status] || STATUS_DEF['Osåld'];
+  const big = size==='md';
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:5,
+      background:s.bg, color:s.color,
+      padding: big ? '5px 12px' : '3px 9px',
+      borderRadius:999, fontSize: big?13:11, fontWeight:700,
+      whiteSpace:'nowrap', letterSpacing:0.1
+    }}>
+      <Icon name={s.icon} size={big?13:11} color={s.color} />
+      {status}
+    </span>
+  );
+}
+
+/* ── TopBar ── */
+function TopBar({ title, onBack, right, sub }) {
+  return (
+    <div style={{ background:C.surface, padding:'12px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+      {onBack && (
+        <button onClick={onBack} style={{ background:C.bg, border:'none', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+          <Icon name="chevron-left" size={20} color={C.text} />
+        </button>
+      )}
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:18, fontWeight:700, color:C.text, letterSpacing:-0.3 }}>{title}</div>
+        {sub && <div style={{ fontSize:12, color:C.textSec, marginTop:1 }}>{sub}</div>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+/* ── Toggle ── */
+function Toggle({ value, onChange, label, sub }) {
+  return (
+    <div onClick={()=>onChange(!value)} style={{
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      background:C.surface, borderRadius:14, padding:'13px 16px',
+      cursor:'pointer', userSelect:'none', gap:12
+    }}>
+      <div>
+        <div style={{ fontSize:15, fontWeight:600, color:C.text }}>{label}</div>
+        {sub && <div style={{ fontSize:12, color:C.textSec, marginTop:1 }}>{sub}</div>}
+      </div>
+      <div style={{ width:48, height:28, borderRadius:999, background:value?C.primary:C.border, position:'relative', transition:'background 150ms', flexShrink:0 }}>
+        <div style={{ position:'absolute', width:22, height:22, background:'white', borderRadius:'50%', top:3, left:value?23:3, transition:'left 150ms', boxShadow:'0 1px 4px rgba(0,0,0,0.2)' }} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Form helpers ── */
+const inp = { width:'100%', padding:'11px 13px', fontSize:15, fontFamily:'inherit', background:C.surface, border:`1.5px solid #E4E2DD`, borderRadius:11, color:'#1C1C1E', transition:'border-color 150ms' };
+function TI({ value, onChange, placeholder, type='text' }) {
+  return <input value={value||''} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type}
+    onFocus={e=>e.target.style.borderColor=C.primary} onBlur={e=>e.target.style.borderColor='#E4E2DD'} style={inp} />;
+}
+function SI({ value, onChange, options }) {
+  return <select value={value} onChange={e=>onChange(e.target.value)} style={{...inp,appearance:'none'}}>
+    {options.map(o=>typeof o==='string'?<option key={o} value={o}>{o}</option>:<option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>;
+}
+function FL({ label, children, col }) {
+  return <div style={{ display:'flex', flexDirection:'column', gap:5, flex:col||undefined }}>
+    <div style={{ fontSize:12, fontWeight:700, color:C.textSec, letterSpacing:0.2 }}>{label}</div>
+    {children}
+  </div>;
+}
+
+/* ── Section card ── */
+function SCard({ accent, icon, title, children, className }) {
+  return (
+    <div className={className} style={{ background:C.surface, borderRadius:16, overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:12 }}>
+      {title && (
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px 10px', borderBottom:`1px solid ${C.border}`, background: accent?accent+'10':undefined }}>
+          {icon && <Icon name={icon} size={15} color={accent||C.textSec} />}
+          <div style={{ fontSize:12, fontWeight:700, color:accent||C.textSec, textTransform:'uppercase', letterSpacing:0.8 }}>{title}</div>
+        </div>
+      )}
+      <div style={{ padding:'14px 16px' }}>{children}</div>
+    </div>
+  );
+}
+
+/* ── OwnerDot ── */
+function OwnerDot({ owner, size=20 }) {
+  return <div style={{ width:size, height:size, borderRadius:'50%', background:owner.color, display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:size*0.45, fontWeight:700, flexShrink:0 }}>{owner.name[0]}</div>;
+}
+
+/* ── BottomNav ── */
+function BottomNav({ active, onNav }) {
+  const SVG = {
+    hem: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 12 15 12 15 21"/></svg>),
+    objekt: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>),
+    agare: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>),
+    statistik: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>),
+  };
+  const tabs = [
+    {id:'hem', svg:'hem', label:'Hem'},
+    {id:'objekt', svg:'objekt', label:'Objekt'},
+    {id:'add', label:''},
+    {id:'agare', svg:'agare', label:'Ägare'},
+    {id:'statistik', svg:'statistik', label:'Statistik'},
+  ];
+  return (
+    <div className="bnav">
+      {tabs.map(t => {
+        if (t.id === 'add') return (
+          <button key="add" onClick={()=>onNav('nytt')} style={{ width:52,height:52,borderRadius:999,background:C.cta,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(232,120,74,0.35)',marginTop:-18,flexShrink:0 }}>
+            <span style={{ fontSize:34, lineHeight:1, color:'white', fontWeight:200, display:'block', marginTop:-3 }}>+</span>
+          </button>
+        );
+        const on = active === t.id;
+        return (
+          <button key={t.id} onClick={()=>onNav(t.id)} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:on?C.primary:C.textMuted,minWidth:52,fontFamily:'inherit',padding:'4px 0' }}>
+            <span style={{ color:on?C.primary:C.textMuted, display:'flex', alignItems:'center' }}>{SVG[t.svg]}</span>
+            <span style={{ fontSize:10, fontWeight:on?700:500 }}>{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
+/* ══════════════════════════════════════
+   HEM
+══════════════════════════════════════ */
+function HemScreen({ items, owners }) {
+  const sold = items.filter(i=>i.sold);
+  const omsat = sold.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+  const carro = sold.reduce((s,i)=>s+Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+  const agare = omsat - carro;
+
+  const alerts = [
+    { label:'Obetald', val:sold.filter(i=>!i.betald).length, color:C.red, icon:'credit-card' },
+    { label:'Väntar frakt', val:items.filter(i=>i.status==='Väntar frakt').length, color:'#92400E', icon:'clock' },
+    { label:'Väntar överlämning', val:items.filter(i=>i.status==='Överlämning').length, color:'#5B21B6', icon:'map-pin' },
+  ].filter(a=>a.val>0);
+
+  return (
+    <div className="scroll">
+      <div style={{ background:C.surface, padding:'14px 16px 12px', borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:-0.3 }}>Hem</div>
+        <div style={{ fontSize:13, color:C.textSec, marginTop:1 }}>April 2026</div>
+      </div>
+      <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+
+        {/* Hero */}
+        <div style={{ background:C.primary, borderRadius:20, padding:'22px 20px', boxShadow:'0 6px 24px rgba(90,127,110,0.28)' }}>
+          <div style={{ color:'rgba(255,255,255,0.7)', fontSize:13, fontWeight:500, marginBottom:4 }}>Omsättning denna månad</div>
+          <div style={{ color:'white', fontSize:36, fontWeight:700, letterSpacing:-1, marginBottom:2 }}>{omsat.toLocaleString('sv-SE')} kr</div>
+          <div style={{ color:'rgba(255,255,255,0.6)', fontSize:13 }}>{sold.length} sålda objekt · {items.filter(i=>!i.sold).length} osålda</div>
+          <div style={{ height:1, background:'rgba(255,255,255,0.15)', margin:'16px 0' }} />
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+            <div>
+              <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, fontWeight:500, marginBottom:3 }}>Carros andel</div>
+              <div style={{ color:'white', fontSize:22, fontWeight:700 }}>{carro.toLocaleString('sv-SE')} kr</div>
+            </div>
+            <div>
+              <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, fontWeight:500, marginBottom:3 }}>Ägarna får</div>
+              <div style={{ color:'white', fontSize:22, fontWeight:700 }}>{agare.toLocaleString('sv-SE')} kr</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action alerts */}
+        {alerts.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {alerts.map(a => (
+              <div key={a.label} style={{ background:C.surface, borderRadius:13, padding:'12px 14px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', display:'flex', alignItems:'center', gap:10, borderLeft:`3px solid ${a.color}` }}>
+                <Icon name={a.icon} size={18} color={a.color} />
+                <div style={{ flex:1 }}>
+                  <span style={{ fontSize:14, fontWeight:600, color:C.text }}>{a.val} objekt</span>
+                  <span style={{ fontSize:14, color:C.textSec }}> · {a.label}</span>
+                </div>
+                <Icon name="chevron-right" size={16} color={C.textMuted} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Owner summary */}
+        <div style={{ fontSize:14, fontWeight:700, color:C.text, marginTop:4 }}>Per ägare</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {owners.map(o => {
+            const oi=items.filter(i=>i.ownerId===o.id&&i.sold);
+            const tot=oi.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+            const cut=oi.reduce((s,i)=>s+Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+            return (
+              <div key={o.id} style={{ background:C.surface, borderRadius:14, padding:'12px 14px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderTop:`3px solid ${o.color}` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                  <OwnerDot owner={o} size={22} />
+                  <span style={{ fontSize:14, fontWeight:600, color:C.text }}>{o.name}</span>
+                </div>
+                <div style={{ fontSize:18, fontWeight:700, color:C.text }}>{(tot-cut).toLocaleString('sv-SE')} kr</div>
+                <div style={{ fontSize:11, color:C.textSec, marginTop:2 }}>ägarandel · {oi.length} sålda</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   OBJEKT
+══════════════════════════════════════ */
+function ObjektScreen({ items, owners, onSelect, onNav }) {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('Alla');
+  const FILTERS=['Alla','Osåld','Såld','Obetald','Väntar frakt','Frakt bokad','Skickad','Överlämning','Klar'];
+
+  const filtered = items.filter(i => {
+    if (search && !i.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filter==='Alla') return true;
+    if (filter==='Såld') return i.sold;
+    if (filter==='Osåld') return !i.sold;
+    if (filter==='Obetald') return i.sold&&!i.betald;
+    return i.status===filter;
+  });
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* Header */}
+      <div style={{ background:C.surface, flexShrink:0, borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ padding:'12px 16px 8px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:-0.3 }}>Objekt</div>
+          <button onClick={()=>onNav('nytt')} style={{ background:C.cta, border:'none', color:'white', fontWeight:700, fontSize:14, padding:'8px 14px', borderRadius:10, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nytt
+          </button>
+        </div>
+        <div style={{ margin:'0 16px 8px', display:'flex', alignItems:'center', gap:8, background:C.bg, borderRadius:11, padding:'9px 13px' }}>
+          <Icon name="search" size={15} color={C.textMuted} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Sök objekt…"
+            style={{ border:'none', background:'none', flex:1, fontSize:15, outline:'none', fontFamily:'inherit', color:C.text }} />
+          {search && <button onClick={()=>setSearch('')} style={{ background:'none', border:'none', cursor:'pointer', color:C.textMuted, fontSize:20, lineHeight:1, padding:0 }}>×</button>}
+        </div>
+        <div style={{ display:'flex', gap:6, padding:'0 16px 10px', overflowX:'auto', scrollbarWidth:'none' }}>
+          {FILTERS.map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.primary:C.bg, color:filter===f?'white':C.textSec, border:'none', borderRadius:999, padding:'5px 12px', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit', flexShrink:0 }}>{f}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="scroll" style={{ padding:'10px 14px 24px' }}>
+        {filtered.length===0 && <div style={{ textAlign:'center', color:C.textMuted, fontSize:14, marginTop:48 }}>Inga objekt hittades</div>}
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtered.map(item => {
+            const owner=owners.find(o=>o.id===item.ownerId);
+            const catIcon=CATEGORY_ICON[item.category]||'package-2';
+            return (
+              <div key={item.id} onClick={()=>onSelect(item)} style={{ background:C.surface, borderRadius:16, boxShadow:'0 2px 10px rgba(0,0,0,0.07)', display:'flex', alignItems:'stretch', cursor:'pointer', overflow:'hidden' }}>
+                {/* Photo */}
+                <div style={{ width:80, flexShrink:0, background:owner?owner.color+'18':C.primaryLight, display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                  {item.photo
+                    ? <img src={item.photo} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <Icon name={catIcon} size={22} color={owner?owner.color:C.primary} />}
+                </div>
+                {/* Info */}
+                <div style={{ flex:1, padding:'11px 13px 11px', minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
+                  {/* Row 1: title + price */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8 }}>
+                    <div style={{ fontSize:15, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{item.title}</div>
+                    <div style={{ fontSize:15, fontWeight:700, color:item.sold?C.primary:C.text, flexShrink:0 }}>
+                      {item.sold?`${item.saltPris} kr`:`${item.utpris} kr`}
+                    </div>
+                  </div>
+                  {/* Row 2: owner + platform */}
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    {owner && <><OwnerDot owner={owner} size={15}/><span style={{ fontSize:12, fontWeight:600, color:owner.color }}>{owner.name}</span></>}
+                    <span style={{ fontSize:11, color:C.border }}>·</span>
+                    <span style={{ fontSize:12, color:C.textSec }}>{item.platform}</span>
+                    {!item.sold && <span style={{ fontSize:11, color:C.textMuted, marginLeft:'auto' }}>utpris</span>}
+                  </div>
+                  {/* Row 3: status */}
+                  <div style={{ marginTop:2 }}><StatusBadge status={item.status} /></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   ITEM FORM (Nytt / Redigera)
+══════════════════════════════════════ */
+const BLANK = { title:'',desc:'',category:'Kläder',utpris:'',platform:'Vinted',ownerId:1,carroAndel:100,sold:false,saltPris:'',datumSald:'',kopare:'',adress:'',postnr:'',ort:'',betald:false,betaldatum:'',fraktmetod:'Postpaket',bokadFrakt:false,fraktbolag:'Postnord',annatFraktbolag:'',fraktkod:'',fraktdatum:'',overlamnningsdatum:'' };
+
+function ItemFormScreen({ item, owners, onSave, onBack, onDelete }) {
+  const isEdit=!!item;
+  const [form, setForm]=useState(item?{...item}:{...BLANK});
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const setOwner=(id)=>{ const o=owners.find(x=>x.id===parseInt(id)); setForm(f=>({...f,ownerId:parseInt(id),carroAndel:o?o.carroAndel:30})); };
+
+  const isHandover=['Hämtas','Avlämnas'].includes(form.fraktmetod);
+  const owner=owners.find(o=>o.id===form.ownerId);
+  const saltPrisNum=parseFloat(form.saltPris||0);
+  const carroBelopp=form.sold&&saltPrisNum?Math.round(saltPrisNum*(form.carroAndel/100)):null;
+  const agareBelopp=carroBelopp!==null?saltPrisNum-carroBelopp:null;
+
+  const handleSave=()=>{ const status=computeStatus(form); onSave({...form,status,id:form.id||Date.now()}); };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <TopBar
+        title={isEdit?'Redigera objekt':'Nytt objekt'}
+        sub={isEdit?item.title:undefined}
+        onBack={onBack}
+        right={isEdit&&<button onClick={onDelete} style={{ background:C.redBg,border:'none',color:C.red,width:36,height:36,borderRadius:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}><Icon name="trash-2" size={16} color={C.red}/></button>}
+      />
+
+      <div className="scroll" style={{ paddingBottom:88 }}>
+        {/* Photo */}
+        <div style={{ background:C.surface, padding:'14px 16px', borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ background:owner?owner.color+'14':C.primaryLight, borderRadius:14, height:120, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+            <Icon name={CATEGORY_ICON[form.category]||'image'} size={40} color={owner?owner.color+'60':C.primary+'60'} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <button style={{ background:C.primary,color:'white',border:'none',borderRadius:12,height:46,fontSize:15,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8 }}>
+              <Icon name="camera" size={17} color="white"/>Ta foto
+            </button>
+            <button style={{ background:C.bg,color:C.text,border:`1.5px solid ${C.border}`,borderRadius:12,height:46,fontSize:15,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8 }}>
+              <Icon name="image" size={17} color={C.textSec}/>Galleri
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding:'12px 14px 0' }}>
+
+          {/* ── Grundinfo ── */}
+          <SCard icon="info" title="Grundinfo" accent={C.primary}>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <FL label="Titel"><TI value={form.title} onChange={v=>set('title',v)} placeholder="t.ex. Röd klänning M"/></FL>
+              <FL label="Beskrivning">
+                <textarea value={form.desc||''} onChange={e=>set('desc',e.target.value)} placeholder="Skick, storlek, detaljer…" rows={2}
+                  style={{...inp,resize:'none',lineHeight:1.5}} onFocus={e=>e.target.style.borderColor=C.primary} onBlur={e=>e.target.style.borderColor='#E4E2DD'}/>
+              </FL>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <FL label="Kategori"><SI value={form.category} onChange={v=>set('category',v)} options={['Kläder','Skor','Accessoarer','Hem','Övrigt']}/></FL>
+                <FL label="Utpris (kr)"><TI value={form.utpris} onChange={v=>set('utpris',v)} type="number" placeholder="0"/></FL>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <FL label="Plattform"><SI value={form.platform} onChange={v=>set('platform',v)} options={['Vinted','TikTok']}/></FL>
+                <FL label="Ägare"><SI value={form.ownerId} onChange={setOwner} options={owners.map(o=>({v:o.id,l:o.name}))}/></FL>
+              </div>
+              <FL label={`Carros andel — ${form.carroAndel}%`}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <input type="range" min="0" max="100" step="5" value={form.carroAndel} onChange={e=>set('carroAndel',parseInt(e.target.value))} style={{ flex:1, accentColor:C.primary }}/>
+                  <span style={{ fontSize:14, fontWeight:700, color:C.primary, width:32, textAlign:'right' }}>{form.carroAndel}%</span>
+                </div>
+              </FL>
+            </div>
+          </SCard>
+
+          {/* ── Såld toggle ── */}
+          <div style={{ marginBottom:12 }}>
+            <Toggle value={form.sold} onChange={v=>set('sold',v)} label="Såld" sub={form.sold?'Fyll i försäljningsinfo nedan':'Osålt — resten döljs'} />
+          </div>
+
+          {form.sold && (
+            <div className="su">
+              {/* ── Pris & andel ── */}
+              <SCard icon="tag" title="Försäljningspris" accent={C.cta}>
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                    <FL label="Sålt pris (kr)"><TI value={form.saltPris} onChange={v=>set('saltPris',v)} type="number"/></FL>
+                    <FL label="Datum såld"><TI value={form.datumSald} onChange={v=>set('datumSald',v)} type="date"/></FL>
+                  </div>
+                  {carroBelopp!==null && (
+                    form.carroAndel===100
+                    ? <div style={{ background:C.primaryLight, borderRadius:12, padding:'14px', paddingTop:10 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>Carro äger — allt till Carro</div>
+                        <div style={{ fontSize:28, fontWeight:700, color:C.primary, letterSpacing:-0.5 }}>{carroBelopp} kr</div>
+                        <div style={{ fontSize:11, color:C.primary+'88', marginTop:2 }}>100% av {form.saltPris} kr</div>
+                      </div>
+                    : <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, paddingTop:4 }}>
+                        <div style={{ background:C.primaryLight, borderRadius:12, padding:'12px' }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>Carros andel</div>
+                          <div style={{ fontSize:26, fontWeight:700, color:C.primary, letterSpacing:-0.5 }}>{carroBelopp} kr</div>
+                          <div style={{ fontSize:11, color:C.primary+'88', marginTop:2 }}>{form.carroAndel}%</div>
+                        </div>
+                        <div style={{ background:owner?owner.color+'14':C.bg, borderRadius:12, padding:'12px' }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:owner?.color||C.textSec, textTransform:'uppercase', letterSpacing:0.6, marginBottom:4 }}>{owner?.name||'Ägaren'} andel</div>
+                          <div style={{ fontSize:26, fontWeight:700, color:C.text, letterSpacing:-0.5 }}>{agareBelopp} kr</div>
+                          <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{100-form.carroAndel}%</div>
+                        </div>
+                      </div>
+                  )}
+                </div>
+              </SCard>
+
+              {/* ── Köparinfo ── */}
+              <SCard icon="user" title="Köparinfo" accent={C.textSec}>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <FL label="Köparens namn"><TI value={form.kopare} onChange={v=>set('kopare',v)} placeholder="Namn"/></FL>
+                  <FL label="Adress"><TI value={form.adress} onChange={v=>set('adress',v)}/></FL>
+                  <div style={{ display:'grid', gridTemplateColumns:'5fr 8fr', gap:10 }}>
+                    <FL label="Postnr"><TI value={form.postnr} onChange={v=>set('postnr',v)}/></FL>
+                    <FL label="Ort"><TI value={form.ort} onChange={v=>set('ort',v)}/></FL>
+                  </div>
+                </div>
+              </SCard>
+
+              {/* ── Betalning ── */}
+              <SCard icon="credit-card" title="Betalning" accent={form.betald?C.primary:C.red} className="su">
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {/* Status indicator */}
+                  <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:10, background:form.betald?C.primaryLight:C.redBg }}>
+                    <Icon name={form.betald?'check-circle':'clock'} size={18} color={form.betald?C.primary:C.red}/>
+                    <span style={{ fontSize:14, fontWeight:600, color:form.betald?C.primary:C.red }}>{form.betald?'Betalning mottagen':'Väntar på betalning'}</span>
+                  </div>
+                  <Toggle value={form.betald} onChange={v=>set('betald',v)} label="Markera som betald" />
+                  {form.betald && <FL label="Betaldatum"><TI value={form.betaldatum} onChange={v=>set('betaldatum',v)} type="date"/></FL>}
+                </div>
+              </SCard>
+
+              {/* ── Frakt / Överlämning ── */}
+              <SCard icon={isHandover?'map-pin':'truck'} title={isHandover?'Överlämning':'Frakt'} accent={isHandover?'#8B5CF6':C.primary}>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <FL label="Fraktmetod">
+                    <SI value={form.fraktmetod} onChange={v=>set('fraktmetod',v)} options={['Postpaket','Brev','Hämtas','Avlämnas','Annat']}/>
+                  </FL>
+                  {isHandover ? (
+                    <div className="su" style={{ background:'#EDE9FE', borderRadius:12, padding:'12px 14px' }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'#5B21B6', marginBottom:8 }}>
+                        {form.fraktmetod==='Hämtas'?'Köparen hämtar själv — inget fraktbolag behövs.':'Säljaren lämnar av hos köparen.'}
+                      </div>
+                      <FL label="Överlämningsdatum"><TI value={form.overlamnningsdatum} onChange={v=>set('overlamnningsdatum',v)} type="date"/></FL>
+                    </div>
+                  ) : (
+                    <div className="su" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                      <Toggle value={form.bokadFrakt} onChange={v=>set('bokadFrakt',v)} label="Frakt bokad"/>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                        <FL label="Fraktbolag"><SI value={form.fraktbolag} onChange={v=>set('fraktbolag',v)} options={['Postnord','DHL','Budbee','Instabox','DB Schenker','Annat']}/></FL>
+                        <FL label="Fraktdatum"><TI value={form.fraktdatum} onChange={v=>set('fraktdatum',v)} type="date"/></FL>
+                      </div>
+                      {form.fraktbolag==='Annat'&&<FL label="Fraktbolagets namn"><TI value={form.annatFraktbolag} onChange={v=>set('annatFraktbolag',v)}/></FL>}
+                      <FL label="Spårningsnummer"><TI value={form.fraktkod} onChange={v=>set('fraktkod',v)} placeholder="t.ex. SE123456789SE"/></FL>
+                    </div>
+                  )}
+                </div>
+              </SCard>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky save */}
+      <div style={{ position:'absolute', bottom:0, left:0, right:0, background:'linear-gradient(to top, white 65%, transparent)', padding:'18px 16px 22px', pointerEvents:'none' }}>
+        <button onClick={handleSave} style={{ width:'100%', height:52, background:C.cta, color:'white', border:'none', borderRadius:15, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 20px rgba(232,120,74,0.4)', pointerEvents:'all' }}>
+          {isEdit?'Spara ändringar':'Lägg till objekt'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   ÄGARE
+══════════════════════════════════════ */
+function AgareScreen({ items, owners, onSelect }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <div style={{ background:C.surface, padding:'12px 16px', borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:-0.3 }}>Ägare</div>
+      </div>
+      <div className="scroll" style={{ padding:'12px 14px 32px', display:'flex', flexDirection:'column', gap:12 }}>
+        {owners.map(owner => {
+          const oi=items.filter(i=>i.ownerId===owner.id);
+          const sold=oi.filter(i=>i.sold);
+          const omsat=sold.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+          const carro=sold.reduce((s,i)=>s+Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+          const agare=omsat-carro;
+          const betalt=sold.filter(i=>i.betald).reduce((s,i)=>s+(parseFloat(i.saltPris)||0)-Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+          const obetalt=agare-betalt>0?agare-betalt:0;
+          const pct=omsat>0?Math.round((betalt/agare)*100):0;
+
+          return (
+            <div key={owner.id} onClick={()=>onSelect(owner)} style={{ background:C.surface, borderRadius:18, boxShadow:'0 2px 12px rgba(0,0,0,0.07)', overflow:'hidden', cursor:'pointer' }}>
+              {/* Header */}
+              <div style={{ background:owner.color, padding:'14px 18px', display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:46, height:46, borderRadius:'50%', background:'rgba(255,255,255,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:700, color:'white' }}>{owner.name[0]}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:'white', fontSize:19, fontWeight:700 }}>{owner.name}</div>
+                  <div style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>{oi.length} objekt · {sold.length} sålda · {oi.filter(i=>!i.sold).length} osålda</div>
+                </div>
+              </div>
+              {/* Economics */}
+              <div style={{ padding:'14px 18px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                  <div style={{ background:C.bg, borderRadius:10, padding:'10px 12px' }}>
+                    <div style={{ fontSize:11, color:C.textSec, fontWeight:600, marginBottom:3 }}>Omsättning</div>
+                    <div style={{ fontSize:18, fontWeight:700, color:C.text }}>{omsat.toLocaleString('sv-SE')} kr</div>
+                  </div>
+                  <div style={{ background:owner.color+'14', borderRadius:10, padding:'10px 12px' }}>
+                    <div style={{ fontSize:11, color:owner.color, fontWeight:600, marginBottom:3 }}>Ägarens andel</div>
+                    <div style={{ fontSize:18, fontWeight:700, color:owner.color }}>{agare.toLocaleString('sv-SE')} kr</div>
+                  </div>
+                </div>
+                {/* Payout progress */}
+                {sold.length>0 && (
+                  <>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:C.textSec }}>Utbetalt till ägare</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:obetalt>0?C.red:C.primary }}>{obetalt>0?`${obetalt.toLocaleString('sv-SE')} kr väntar`:'Allt utbetalt'}</span>
+                    </div>
+                    <div style={{ height:6, background:C.bg, borderRadius:999, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${pct}%`, background:owner.color, borderRadius:999, transition:'width 500ms' }}/>
+                    </div>
+                    <div style={{ fontSize:11, color:C.textMuted, marginTop:4 }}>{betalt.toLocaleString('sv-SE')} kr av {agare.toLocaleString('sv-SE')} kr betalt</div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Ägardetalj ── */
+function AgardetaljScreen({ owner, items, onBack, onSelectItem }) {
+  const oi=items.filter(i=>i.ownerId===owner.id);
+  const sold=oi.filter(i=>i.sold);
+  const omsat=sold.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+  const carro=sold.reduce((s,i)=>s+Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+  const agare=omsat-carro;
+  const betalt=sold.filter(i=>i.betald).reduce((s,i)=>s+(parseFloat(i.saltPris)||0)-Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <TopBar title={owner.name} onBack={onBack} />
+      <div className="scroll">
+        {/* Hero */}
+        <div style={{ background:owner.color, padding:'18px 16px 22px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+            <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:12, padding:'12px 14px' }}>
+              <div style={{ color:'rgba(255,255,255,0.7)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>Ägarens andel</div>
+              <div style={{ color:'white', fontSize:24, fontWeight:700 }}>{agare.toLocaleString('sv-SE')} kr</div>
+            </div>
+            <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:12, padding:'12px 14px' }}>
+              <div style={{ color:'rgba(255,255,255,0.7)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>Carros andel</div>
+              <div style={{ color:'white', fontSize:24, fontWeight:700 }}>{carro.toLocaleString('sv-SE')} kr</div>
+            </div>
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.12)', borderRadius:10, padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>Väntar utbetalning</div>
+              <div style={{ color:'white', fontSize:18, fontWeight:700 }}>{Math.max(0,agare-betalt).toLocaleString('sv-SE')} kr</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>Utbetalt</div>
+              <div style={{ color:'white', fontSize:18, fontWeight:700 }}>{betalt.toLocaleString('sv-SE')} kr</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'12px 14px 32px', display:'flex', flexDirection:'column', gap:8 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:1, textTransform:'uppercase', padding:'4px 0 4px' }}>Objekt ({oi.length})</div>
+          {oi.map(item=>(
+            <div key={item.id} onClick={()=>onSelectItem(item)} style={{ background:C.surface, borderRadius:14, padding:'12px 13px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:15, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
+                <div style={{ fontSize:12, color:C.textSec, marginTop:2 }}>{item.platform} · {item.category}</div>
+              </div>
+              <div style={{ textAlign:'right', flexShrink:0, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
+                <div style={{ fontSize:15, fontWeight:700, color:item.sold?C.primary:C.text }}>{item.sold?`${item.saltPris} kr`:`${item.utpris} kr`}</div>
+                <StatusBadge status={item.status} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   STATISTIK
+══════════════════════════════════════ */
+function StatistikScreen({ items, owners }) {
+  const sold=items.filter(i=>i.sold);
+  const omsat=sold.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+  const carro=sold.reduce((s,i)=>s+Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0);
+  const agare=omsat-carro;
+  const betaldKr=sold.filter(i=>i.betald).reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0);
+  const obetaldKr=omsat-betaldKr;
+
+  const actions=[
+    { label:'obetald', count:sold.filter(i=>!i.betald).length, color:C.red, icon:'credit-card', status:'Obetald' },
+    { label:'väntar frakt', count:items.filter(i=>i.status==='Väntar frakt').length, color:'#92400E', icon:'clock', status:'Väntar frakt' },
+    { label:'väntar överlämning', count:items.filter(i=>i.status==='Överlämning').length, color:'#5B21B6', icon:'map-pin', status:'Överlämning' },
+  ].filter(a=>a.count>0);
+
+  const byPlatform=['Vinted','TikTok'].map(p=>{
+    const pl=sold.filter(i=>i.platform===p);
+    return { name:p, count:pl.length, total:pl.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0) };
+  });
+  const byOwner=owners.map(o=>{
+    const oi=sold.filter(i=>i.ownerId===o.id);
+    return { name:o.name, color:o.color, count:oi.length, total:oi.reduce((s,i)=>s+(parseFloat(i.saltPris)||0),0), agare:oi.reduce((s,i)=>s+(parseFloat(i.saltPris)||0)-Math.round((parseFloat(i.saltPris)||0)*(i.carroAndel/100)),0) };
+  });
+  const maxP=Math.max(...byPlatform.map(p=>p.total),1);
+  const maxO=Math.max(...byOwner.map(o=>o.total),1);
+
+  const Bar=({ name, total, agare, count, color, max })=>{
+    const pct=Math.round((total/max)*100);
+    return (
+      <div style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:C.text }}>{name}</div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:14, fontWeight:700, color:C.text }}>{total.toLocaleString('sv-SE')} kr</div>
+            {agare!==undefined && <div style={{ fontSize:11, color:C.textSec }}>ägarandel: {agare.toLocaleString('sv-SE')} kr · {count} st</div>}
+            {agare===undefined && <div style={{ fontSize:11, color:C.textSec }}>{count} st</div>}
+          </div>
+        </div>
+        <div style={{ height:10, background:C.bg, borderRadius:999, overflow:'hidden' }}>
+          <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:999 }}/>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <div style={{ background:C.surface, padding:'12px 16px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:-0.3 }}>Statistik</div>
+        <div style={{ display:'flex', alignItems:'center', gap:6, background:C.bg, borderRadius:10, padding:'6px 12px' }}>
+          <Icon name="calendar" size={13} color={C.textSec}/>
+          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>April 2026</span>
+        </div>
+      </div>
+      <div className="scroll" style={{ padding:'12px 14px 32px', display:'flex', flexDirection:'column', gap:10 }}>
+
+        {/* Actionable alerts */}
+        {actions.length>0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {actions.map(a=>(
+              <div key={a.label} style={{ background:C.surface, borderRadius:12, padding:'11px 14px', display:'flex', alignItems:'center', gap:10, boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderLeft:`3px solid ${a.color}` }}>
+                <Icon name={a.icon} size={17} color={a.color}/>
+                <span style={{ fontSize:13, fontWeight:700, color:a.color }}>{a.count} objekt</span>
+                <span style={{ fontSize:13, color:C.textSec }}>{a.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* KPI grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {[
+            { label:'Omsättning', val:`${omsat.toLocaleString('sv-SE')} kr`, accent:C.primary },
+            { label:'Sålda objekt', val:`${sold.length} st`, sub:`${items.filter(i=>!i.sold).length} st osålda` },
+            { label:'Carros andel', val:`${carro.toLocaleString('sv-SE')} kr`, accent:C.cta },
+            { label:'Ägarna får', val:`${agare.toLocaleString('sv-SE')} kr` },
+          ].map(({label,val,sub,accent})=>(
+            <div key={label} style={{ background:C.surface, borderRadius:14, padding:'13px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', borderTop:accent?`3px solid ${accent}`:undefined }}>
+              <div style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:-0.4 }}>{val}</div>
+              <div style={{ fontSize:12, color:C.textSec, marginTop:3 }}>{label}</div>
+              {sub && <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Payment bar */}
+        <div style={{ background:C.surface, borderRadius:14, padding:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:C.text, marginBottom:10 }}>Betalstatus — omsättning</div>
+          <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', height:12, marginBottom:8 }}>
+            <div style={{ flex:betaldKr, background:C.primary }}/>
+            <div style={{ flex:Math.max(obetaldKr,0), background:obetaldKr>0?C.red+'40':C.primary }}/>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}>
+            <span style={{ fontSize:12, color:C.primary, fontWeight:600 }}>Betald: {betaldKr.toLocaleString('sv-SE')} kr</span>
+            {obetaldKr>0 && <span style={{ fontSize:12, color:C.red, fontWeight:600 }}>Obetald: {obetaldKr.toLocaleString('sv-SE')} kr</span>}
+          </div>
+        </div>
+
+        {/* Per plattform */}
+        <div style={{ background:C.surface, borderRadius:16, padding:'16px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:C.text, marginBottom:14 }}>Per plattform</div>
+          {byPlatform.map(p=><Bar key={p.name} name={p.name} total={p.total} count={p.count} color={C.primary} max={maxP}/>)}
+        </div>
+
+        {/* Per ägare */}
+        <div style={{ background:C.surface, borderRadius:16, padding:'16px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:C.text, marginBottom:14 }}>Per ägare — omsättning</div>
+          {byOwner.map(o=><Bar key={o.name} name={o.name} total={o.total} agare={o.agare} count={o.count} color={o.color} max={maxO}/>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   APP ROOT
+══════════════════════════════════════ */
+function App() {
+  const [items, setItems]=useState(()=>load('cs_items_v4',DEFAULT_ITEMS));
+  const [owners]=useState(()=>load('cs_owners_v4',DEFAULT_OWNERS));
+  const [tab, setTab]=useState(()=>localStorage.getItem('cs_tab_v4')||'hem');
+  const [selItem, setSelItem]=useState(null);
+  const [selOwner, setSelOwner]=useState(null);
+  const [formMode, setFormMode]=useState(false);
+
+  useEffect(()=>{ save('cs_items_v4',items); },[items]);
+  useEffect(()=>{ localStorage.setItem('cs_tab_v4',tab); },[tab]);
+
+  const navTo=t=>{ setTab(t); setSelItem(null); setSelOwner(null); setFormMode(false); };
+  const openItem=item=>{ setSelItem(item); setFormMode(true); };
+  const openOwner=owner=>setSelOwner(owner);
+  const handleSave=updated=>{ setItems(prev=>updated.id&&prev.find(i=>i.id===updated.id)?prev.map(i=>i.id===updated.id?updated:i):[...prev,updated]); setFormMode(false); setSelItem(null); navTo('objekt'); };
+  const handleDelete=()=>{ if(selItem) setItems(prev=>prev.filter(i=>i.id!==selItem.id)); setFormMode(false); setSelItem(null); navTo('objekt'); };
+
+  const showNav=!formMode&&tab!=='nytt'&&!selOwner;
+
+  let screen;
+  if(formMode)        screen=<ItemFormScreen item={selItem} owners={owners} onSave={handleSave} onBack={()=>{setFormMode(false);setSelItem(null);}} onDelete={handleDelete}/>;
+  else if(selOwner)   screen=<AgardetaljScreen owner={selOwner} items={items} onBack={()=>setSelOwner(null)} onSelectItem={openItem}/>;
+  else if(tab==='nytt')     screen=<ItemFormScreen owners={owners} onSave={handleSave} onBack={()=>navTo('objekt')}/>;
+  else if(tab==='hem')      screen=<HemScreen items={items} owners={owners}/>;
+  else if(tab==='objekt')   screen=<ObjektScreen items={items} owners={owners} onSelect={openItem} onNav={navTo}/>;
+  else if(tab==='agare')    screen=<AgareScreen items={items} owners={owners} onSelect={openOwner}/>;
+  else if(tab==='statistik')screen=<StatistikScreen items={items} owners={owners}/>;
+
+  return (
+    <div className="phone">
+      <div className="sbar">
+        <span>9:41</span>
+        <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:13 }}>
+          <span>●●●●</span><span>WiFi</span><span style={{ fontWeight:700 }}>100%</span>
+        </div>
+      </div>
+      <div className="screen">{screen}</div>
+      {showNav && <BottomNav active={tab} onNav={navTo}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<script>
+// Register service worker for PWA offline + installability
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('SW registered:', r.scope))
+      .catch(e => console.log('SW registration failed:', e));
+  });
+}
+</script>
+</body>
+</html>
