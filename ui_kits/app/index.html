@@ -44,6 +44,7 @@ body {
   border-radius: 50px; overflow: hidden; position: relative;
   box-shadow: 0 40px 100px rgba(0,0,0,0.7), inset 0 0 0 1.5px rgba(255,255,255,0.1);
   display: flex; flex-direction: column;
+  overscroll-behavior: none;
 }
 /* On real phones or narrow screens — fill the screen */
 @media (max-width: 430px), (max-height: 870px) {
@@ -72,8 +73,9 @@ body {
   .bnav { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); height: calc(64px + env(safe-area-inset-bottom, 0px)); }
 }
 .sbar { height:50px; background:#fff; display:flex; align-items:flex-end; justify-content:space-between; padding:0 28px 10px; flex-shrink:0; font-size:14px; font-weight:600; color:#1C1C1E; }
-.screen { flex:1; overflow:hidden; display:flex; flex-direction:column; position:relative; }
-.scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
+.screen { flex:1; overflow:hidden; display:flex; flex-direction:column; position:relative; min-height:0; }
+html, body { overscroll-behavior: none; }
+.scroll { flex:1; overflow-y:auto; overflow-x:hidden; min-height:0; overscroll-behavior: contain; }
 .scroll::-webkit-scrollbar { display:none; }
 .bnav { height:84px; background:#fff; border-top:1px solid #E4E2DD; display:flex; align-items:center; justify-content:space-around; padding:6px 4px 24px; flex-shrink:0; overflow:visible; }
 /* Standalone PWA mode — remove phone shell, fill screen */
@@ -309,7 +311,7 @@ function BottomNav({ active, onNav }) {
     <div className="bnav">
       {tabs.map(t => {
         if (t.id === 'add') return (
-          <button key="add" onClick={()=>onNav('nytt')} style={{ width:52,height:52,borderRadius:999,background:C.cta,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(232,120,74,0.35)',marginTop:-18,flexShrink:0 }}>
+          <button key="add" onClick={()=>onNav('nytt')} style={{ width:52,height:52,borderRadius:999,background:C.cta,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(232,120,74,0.35)',flexShrink:0 }}>
             <span style={{ fontSize:34, lineHeight:1, color:'white', fontWeight:200, display:'block', marginTop:-3 }}>+</span>
           </button>
         );
