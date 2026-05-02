@@ -356,7 +356,7 @@ function BottomNav({ active, onNav }) {
       {tabs.map(t => {
         if (t.id === 'add') return (
           <button key="add" onClick={()=>onNav('nytt')} style={{ width:52,height:52,borderRadius:999,background:C.cta,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(232,120,74,0.35)',flexShrink:0 }}>
-            <span style={{ fontSize:34, lineHeight:1, color:'white', fontWeight:200, display:'block', marginTop:-3 }}>+</span>
+            <span style={{ fontSize:28, lineHeight:'52px', color:'white', fontWeight:400, display:'block', textAlign:'center', width:'100%' }}>+</span>
           </button>
         );
         const on = active === t.id;
